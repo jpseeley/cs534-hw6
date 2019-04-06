@@ -102,9 +102,9 @@ for i in range(len(copy_flat_images)):
 	curr_image = copy_flat_images[i]
 
 	if not grouped_flat_images[curr_label]:
-		grouped_flat_images[curr_label] = copy.deepcopy([curr_image])
+		grouped_flat_images[curr_label] = [curr_image]
 	else:
-		grouped_flat_images[curr_label].append(copy.deepcopy(curr_image))
+		grouped_flat_images[curr_label].append(curr_image)
 
 # @debug
 # for group in grouped_flat_images:
@@ -117,12 +117,6 @@ for i in range(len(copy_flat_images)):
 # 			print(img[0])
 # 		i+=1
 
-# @todo
-# try and remove deepcopies because they are so slow
-
-# timg = np.asarray(copy_flat_images[0]).reshape(1, 28, 28) @debug
-
-# Deleting and maybe shallow copy issues?, if weird bugs later on, deepcopy everything
 rand_label = 0
 for group in grouped_flat_images:
 	# Limits for each set
@@ -142,10 +136,10 @@ for group in grouped_flat_images:
 
 		# Add the image and label to our training set
 		if not training_images[0]: # empty training set
-			training_images[0] = copy.deepcopy(rand_image)
+			training_images[0] = rand_image
 			# print(rand_image)
 		else: # non-empty training set
-			training_images.append(copy.deepcopy(rand_image))
+			training_images.append(rand_image)
 		if training_labels[0] == -1: # empty training set
 			training_labels[0] = rand_label
 		else: # non-empty training set
@@ -158,16 +152,14 @@ for group in grouped_flat_images:
 		# print("{}/{}: {} from [{},...,{}]".format(i, per_60-1, rand_index, 0, len(curr_group)-1))
 		rand_image = curr_group[rand_index] # image
 		del curr_group[rand_index] # delete image
-		# if i == 0:
-			# print(np.asarray(rand_image).shape)
-			# print(rand_image)
+
 		# Add the image and label to our training set
 		if not validation_images[0]: # empty training set
-			validation_images[0] = copy.deepcopy(rand_image)
+			validation_images[0] = rand_image
 			# print(rand_image)
 
 		else: # non-empty training set
-			validation_images.append(copy.deepcopy(rand_image))
+			validation_images.append(rand_image)
 		if validation_labels[0] == -1: # empty training set
 			validation_labels[0] = rand_label
 		else: # non-empty training set
@@ -183,11 +175,11 @@ for group in grouped_flat_images:
 
 		# Add the image and label to our training set
 		if not testing_images[0]: # empty training set
-			testing_images[0] = copy.deepcopy(rand_image)
+			testing_images[0] = rand_image
 			# print(rand_image)
 
 		else: # non-empty training set
-			testing_images.append(copy.deepcopy(rand_image))
+			testing_images.append(rand_image)
 		if testing_labels[0] == -1: # empty training set
 			testing_labels[0] = rand_label
 		else: # non-empty training set
@@ -195,26 +187,7 @@ for group in grouped_flat_images:
 
 	rand_label += 1
 
-print(len(training_images))
-print(len(training_images[0]))
-print(len(training_images[0][0]))
-
-# for i in range(len(training_images)):
-# # for i in range(2):
-# 	img = training_images[i]
-# 	box_list = [[]]
-# 	# print(img)
-# 	for j in range(28):
-# 		# print(j)
-# 		if not box_list[0]:
-# 			box_list[0] = img[0][28*j:28*j+28-1]
-# 		else:
-# 			box_list.append(img[0][28*j:28*j+28-1])
-# 	training_images[i] = box_list
-	# print(box_list)
-# print(training_images[0])
-# print(training_images[1])
-
+# @debug
 for i in range(len(training_images)):
 	# if i == 0:
 		# print(training_images[0])
@@ -222,6 +195,7 @@ for i in range(len(training_images)):
 		print(training_images[i])
 	# print("{}: {} x {}".format(i, len(training_images[i]), len(training_images[i][0])))
 
+# Final reshaping for correct format for neural network
 training_labels = np.reshape(np_utils.to_categorical(np.asarray(training_labels)), (len(training_labels), 1, 10))
 validation_labels = np.reshape(np_utils.to_categorical(np.asarray(validation_labels)), (len(validation_labels), 1, 10))
 testing_labels = np.reshape(np_utils.to_categorical(np.asarray(testing_labels)), (len(testing_labels), 1, 10))
@@ -229,29 +203,14 @@ training_images = np.asarray(training_images)
 validation_images = np.asarray(validation_images)
 testing_images = np.asarray(testing_images)
 
-
-# training_images = np.asarray(training_images)
-
-# for i in range(len(training_images)):
-# 	training_images[i] = copy.deepcopy(np.asarray(training_images[i]))
-
-# print(type(training_images))
-# print(type(training_images[0]))
-# print(type(training_images[0][0]))
-
+# @debug
+# Printing out final array shapes
 print(training_images.shape)
 print(training_labels.shape)
 print(validation_images.shape)
 print(validation_labels.shape)
 print(testing_images.shape)
 print(testing_labels.shape)
-
-# print((np.asarray(copy_flat_images)).shape)
-# print((np.asarray(copy_labels)).shape)
-# print(training_labels)
-# training_labels.append(0)
-# print(training_labels)
-
 
 
 ## Neural Network Model ##
@@ -262,22 +221,24 @@ print(testing_labels.shape)
 #  Number of neurons / layer (including 1st layer)
 # Do not change final layer
 model = Sequential() # declare model
-model.add(Dense(512, input_shape=(1, 28*28), kernel_initializer='he_uniform', kernel_constraint=MaxNorm(3))) # first layer
-model.add(Activation('relu'))
+model.add(Dense(512, input_shape=(1, 28*28), kernel_initializer='he_normal', kernel_constraint=MaxNorm(4.5))) # first layer
+model.add(Activation('selu'))
 ## @todo
 model.add(Dropout(0.2))
 # model.add(Dense(256, activation='relu', kernel_initializer='he_uniform', kernel_constraint=MaxNorm(3)))
 # model.add(Dropout(0.2))
-model.add(Dense(128, activation='relu', kernel_initializer='he_uniform', kernel_constraint=MaxNorm(3)))
+model.add(Dense(512, activation='selu', kernel_initializer='he_normal', kernel_constraint=MaxNorm(4.0)))
 model.add(Dropout(0.2))
-model.add(Dense(128, activation='relu', kernel_initializer='he_uniform', kernel_constraint=MaxNorm(3)))
+model.add(Dense(512, activation='selu', kernel_initializer='he_normal', kernel_constraint=MaxNorm(3.5)))
 model.add(Dropout(0.2))
-model.add(Dense(128, activation='relu', kernel_initializer='he_uniform', kernel_constraint=MaxNorm(3)))
-model.add(Dropout(0.2))
-model.add(Dense(128, activation='relu', kernel_initializer='he_uniform', kernel_constraint=MaxNorm(3)))
-model.add(Dropout(0.2))
-model.add(Dense(128, activation='relu', kernel_initializer='he_uniform', kernel_constraint=MaxNorm(3)))
-model.add(Dropout(0.2))
+# model.add(Dense(128, activation='relu', kernel_initializer='he_uniform', kernel_constraint=MaxNorm(3)))
+# model.add(Dropout(0.2))
+# model.add(Dense(128, activation='relu', kernel_initializer='he_uniform', kernel_constraint=MaxNorm(3)))
+# model.add(Dropout(0.2))
+# model.add(Dense(128, activation='relu', kernel_initializer='he_uniform', kernel_constraint=MaxNorm(3)))
+# model.add(Dropout(0.2))
+# model.add(Dense(128, activation='relu', kernel_initializer='he_uniform', kernel_constraint=MaxNorm(3)))
+# model.add(Dropout(0.2))
 # model.add(Dense(128, activation='relu', kernel_initializer='he_uniform'))
 # model.add(Dense(128, activation='relu', kernel_initializer='he_uniform'))
 # model.add(Dense(10))
@@ -294,15 +255,16 @@ model.compile(optimizer='sgd',
               metrics=['accuracy'])
 
 # # Train Model
-x_train = training_images
+x_train = training_images.astype('float32')/255
 y_train = training_labels
-x_val = validation_images
+x_val = validation_images.astype('float32')/255
 y_val = validation_labels
 
-# history = model.fit(x_train, y_train, 
-#                     validation_data = (x_val, y_val), 
-#                     epochs=10, 
-#                     batch_size=512)
+# Can vary epochs + batch_size
+history = model.fit(x_train, y_train, 
+                    validation_data = (x_val, y_val), 
+                    epochs=20, 
+                    batch_size=512)
 
 
 # ## Report Results ##
@@ -315,11 +277,11 @@ y_val = validation_labels
 
 
 
-
-for i in range(10):
-	base = 900
-	plot_num(x_train[i+base],y_train[i+base])
-	plot_num(x_val[i+base],y_val[i+base])
+# @debug
+# for i in range(10):
+# 	base = 900
+# 	plot_num(x_train[i+base],y_train[i+base])
+# 	plot_num(x_val[i+base],y_val[i+base])
 
 
 
