@@ -23,7 +23,8 @@
 
 ### START OF MODEL TEMPLATE GIVEN IN ASSIGNMENT ###
 from keras.models import Sequential
-from keras.layers import Dense, Activation
+from keras.layers import Dense, Activation, Dropout 
+from keras.constraints import MaxNorm
 from keras import utils as np_utils
 from matplotlib import pyplot as plt
 import numpy as np
@@ -47,9 +48,10 @@ onehot_labels = np_utils.to_categorical(labels)
 
 ## Helper functions
 
-# Plots unflattened image
-def plot_num(image):
-	plt.imshow(image)
+# Plots flattened image
+def plot_num(image,label):
+	plt.imshow(image.reshape(28, 28))
+	plt.title('label={}'.format(np.argmax(label)))
 	plt.show()
 
 
@@ -115,6 +117,8 @@ for i in range(len(copy_flat_images)):
 # 			print(img[0])
 # 		i+=1
 
+# @todo
+# try and remove deepcopies because they are so slow
 
 # timg = np.asarray(copy_flat_images[0]).reshape(1, 28, 28) @debug
 
@@ -216,7 +220,15 @@ for i in range(len(training_images)):
 		# print(training_images[0])
 	if isinstance(training_images[i][0], int):
 		print(training_images[i])
-	print("{}: {} x {}".format(i, len(training_images[i]), len(training_images[i][0])))
+	# print("{}: {} x {}".format(i, len(training_images[i]), len(training_images[i][0])))
+
+training_labels = np.reshape(np_utils.to_categorical(np.asarray(training_labels)), (len(training_labels), 1, 10))
+validation_labels = np.reshape(np_utils.to_categorical(np.asarray(validation_labels)), (len(validation_labels), 1, 10))
+testing_labels = np.reshape(np_utils.to_categorical(np.asarray(testing_labels)), (len(testing_labels), 1, 10))
+training_images = np.asarray(training_images)
+validation_images = np.asarray(validation_images)
+testing_images = np.asarray(testing_images)
+
 
 # training_images = np.asarray(training_images)
 
@@ -227,12 +239,12 @@ for i in range(len(training_images)):
 # print(type(training_images[0]))
 # print(type(training_images[0][0]))
 
-print((np.asarray(training_images)).shape)
-print((np.asarray(training_labels)).shape)
-print((np.asarray(validation_images)).shape)
-print((np.asarray(validation_labels)).shape)
-print((np.asarray(testing_images)).shape)
-print((np.asarray(testing_labels)).shape)
+print(training_images.shape)
+print(training_labels.shape)
+print(validation_images.shape)
+print(validation_labels.shape)
+print(testing_images.shape)
+print(testing_labels.shape)
 
 # print((np.asarray(copy_flat_images)).shape)
 # print((np.asarray(copy_labels)).shape)
@@ -250,29 +262,42 @@ print((np.asarray(testing_labels)).shape)
 #  Number of neurons / layer (including 1st layer)
 # Do not change final layer
 model = Sequential() # declare model
-model.add(Dense(10, input_shape=(28*28, ), kernel_initializer='he_normal')) # first layer
+model.add(Dense(512, input_shape=(1, 28*28), kernel_initializer='he_uniform', kernel_constraint=MaxNorm(3))) # first layer
 model.add(Activation('relu'))
-# #
-# #
-# #
-# # Fill in Model Here @todo
-# #
-# #
+## @todo
+model.add(Dropout(0.2))
+# model.add(Dense(256, activation='relu', kernel_initializer='he_uniform', kernel_constraint=MaxNorm(3)))
+# model.add(Dropout(0.2))
+model.add(Dense(128, activation='relu', kernel_initializer='he_uniform', kernel_constraint=MaxNorm(3)))
+model.add(Dropout(0.2))
+model.add(Dense(128, activation='relu', kernel_initializer='he_uniform', kernel_constraint=MaxNorm(3)))
+model.add(Dropout(0.2))
+model.add(Dense(128, activation='relu', kernel_initializer='he_uniform', kernel_constraint=MaxNorm(3)))
+model.add(Dropout(0.2))
+model.add(Dense(128, activation='relu', kernel_initializer='he_uniform', kernel_constraint=MaxNorm(3)))
+model.add(Dropout(0.2))
+model.add(Dense(128, activation='relu', kernel_initializer='he_uniform', kernel_constraint=MaxNorm(3)))
+model.add(Dropout(0.2))
+# model.add(Dense(128, activation='relu', kernel_initializer='he_uniform'))
+# model.add(Dense(128, activation='relu', kernel_initializer='he_uniform'))
+# model.add(Dense(10))
+#
+##
 model.add(Dense(10, kernel_initializer='he_normal')) # last layer
 model.add(Activation('softmax'))
 
 
 # ## Compile and Train Neural Network Model ## 
 # # Compile Model
-# model.compile(optimizer='sgd',
-#               loss='categorical_crossentropy', 
-#               metrics=['accuracy'])
+model.compile(optimizer='sgd',
+              loss='categorical_crossentropy', 
+              metrics=['accuracy'])
 
 # # Train Model
-# x_train = training_images
-# y_train = np_utils.to_categorical(np.asarray(training_labels))
-# x_val = validation_images
-# y_val = np_utils.to_categorical(np.asarray(validation_labels))
+x_train = training_images
+y_train = training_labels
+x_val = validation_images
+y_val = validation_labels
 
 # history = model.fit(x_train, y_train, 
 #                     validation_data = (x_val, y_val), 
@@ -291,6 +316,10 @@ model.add(Activation('softmax'))
 
 
 
+for i in range(10):
+	base = 900
+	plot_num(x_train[i+base],y_train[i+base])
+	plot_num(x_val[i+base],y_val[i+base])
 
 
 
@@ -299,3 +328,8 @@ model.add(Activation('softmax'))
 
 
 
+
+
+
+
+# 
