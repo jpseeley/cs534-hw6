@@ -25,11 +25,15 @@
 from keras.models import Sequential
 from keras.layers import Dense, Activation, Dropout 
 from keras.constraints import MaxNorm
+from keras import initializers
 from keras import utils as np_utils
+from sklearn.metrics import confusion_matrix
 from matplotlib import pyplot as plt
 import numpy as np
 import copy
 import random
+import seaborn as sn
+import pandas as pd
 
 # Model Template
 
@@ -221,16 +225,17 @@ print(testing_labels.shape)
 #  Number of neurons / layer (including 1st layer)
 # Do not change final layer
 model = Sequential() # declare model
-model.add(Dense(512, input_shape=(1, 28*28), kernel_initializer='he_normal', kernel_constraint=MaxNorm(4.5))) # first layer
+model.add(Dense(512, input_shape=(1, 28*28), kernel_initializer=initializers.random_normal(stddev=1/512), kernel_constraint=MaxNorm(4.5))) # first layer
 model.add(Activation('selu'))
 ## @todo
 model.add(Dropout(0.2))
 # model.add(Dense(256, activation='relu', kernel_initializer='he_uniform', kernel_constraint=MaxNorm(3)))
 # model.add(Dropout(0.2))
 model.add(Dense(512, activation='selu', kernel_initializer='he_normal', kernel_constraint=MaxNorm(4.0)))
-model.add(Dropout(0.2))
+model.add(Dropout(0.15))
 model.add(Dense(512, activation='selu', kernel_initializer='he_normal', kernel_constraint=MaxNorm(3.5)))
-model.add(Dropout(0.2))
+model.add(Dropout(0.1))
+
 # model.add(Dense(128, activation='relu', kernel_initializer='he_uniform', kernel_constraint=MaxNorm(3)))
 # model.add(Dropout(0.2))
 # model.add(Dense(128, activation='relu', kernel_initializer='he_uniform', kernel_constraint=MaxNorm(3)))
@@ -261,20 +266,41 @@ x_val = validation_images.astype('float32')/255
 y_val = validation_labels
 
 # Can vary epochs + batch_size
+# 1. increased epochs to 20 to make sure we reach asymtoptic validation accuracy
+# 2. batch size higher actually reduced performance, likely because it was higher than val
+#   a. lower however has higher variance through epochs, potentially better accuracy ~300 sweet spot
 history = model.fit(x_train, y_train, 
                     validation_data = (x_val, y_val), 
-                    epochs=20, 
-                    batch_size=512)
+                    epochs=10, 
+                    batch_size=300)
 
 
-# ## Report Results ##
-# # Printout
-# print(history.history)
-# model.predict()
+## Report Results of Training and Validation ##
+# Printout
+# print(history.history) @todo (uncomment for now)
+
+# Prediction
+x_test = testing_images.astype('float32')/255
+# y_test = np.reshape(testing_labels, (len(x_test), 10))
+y_test = np.argmax(testing_labels, axis=2)
+y_pred = model.predict(x_test) # uses the test set @todo
 
 # Confusion Matrix @todo
+# Plots very simple confusion matrix
+# y_pred = np.reshape(np_utils.to_categorical(np.argmax(y_pred, axis=2)), (len(y_test), 10)) # turn pred binary and reshape
+y_pred = np.argmax(y_pred, axis=2)
+print(y_test)
+print(y_pred)
 
+cm = confusion_matrix(y_test, y_pred) # labels=[str(i) for i in range(10)]
+df_cm = pd.DataFrame(cm, range(10), range(10))
+plt.figure(figsize=(10,10))
+sn.heatmap(df_cm, annot=True)
+plt.xlabel('True Label')
+plt.ylabel('Predicted Label')
+plt.show()
 
+# print(np.argmax(y_pred, axis=2))
 
 
 # @debug
@@ -289,9 +315,3 @@ history = model.fit(x_train, y_train,
 
 
 
-
-
-
-
-
-# 
