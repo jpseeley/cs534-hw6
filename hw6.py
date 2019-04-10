@@ -28,6 +28,7 @@ from keras.constraints import MaxNorm
 from keras import initializers
 from keras import utils as np_utils
 from sklearn.metrics import confusion_matrix
+from sklearn.tree import DecisionTreeClassifier
 from matplotlib import pyplot as plt
 import numpy as np
 import copy
@@ -43,6 +44,9 @@ import pandas as pd
 images = np.load('images.npy')
 labels = np.load('labels.npy')
 
+print(images.shape)
+print(labels.shape)
+
 # Reshape into 6500 x 1 x 784 
 flat_images = images.reshape(len(images), 1, len(images[0])*len(images[0]))
 onehot_labels = np_utils.to_categorical(labels)
@@ -56,6 +60,16 @@ onehot_labels = np_utils.to_categorical(labels)
 def plot_num(image,label):
 	plt.imshow(image.reshape(28, 28))
 	plt.title('label={}'.format(np.argmax(label)))
+	plt.show()
+
+def plot_confusion_matrix(cm_):
+	plt.figure(figsize=(10,10))
+	ax = plt.gca()
+	df_cm = pd.DataFrame(cm_, range(10), range(10))
+	sn.heatmap(df_cm, annot=True, fmt='d')
+	plt.xlabel('True Label')
+	plt.ylabel('Predicted Label')
+	plt.title('Confusion Matrix: Acc={:0.3f}%'.format(100*np.trace(cm_)/np.sum(cm_)))
 	plt.show()
 
 
@@ -77,7 +91,7 @@ copy_flat_images = copy.deepcopy(flat_images).tolist()
 copy_labels = copy.deepcopy(labels).tolist()
 
 # print(copy_flat_images[0])
-print((np.asarray(copy_flat_images)).shape)
+print((np.asarray(copy_labels)).shape)
 
 # Sets
 training_images = [[]]
@@ -227,7 +241,7 @@ print(testing_labels.shape)
 model = Sequential() # declare model
 model.add(Dense(512, input_shape=(1, 28*28), kernel_initializer=initializers.random_normal(stddev=1/512), kernel_constraint=MaxNorm(4.5))) # first layer
 model.add(Activation('selu'))
-## @todo
+## 
 model.add(Dropout(0.2))
 # model.add(Dense(256, activation='relu', kernel_initializer='he_uniform', kernel_constraint=MaxNorm(3)))
 # model.add(Dropout(0.2))
@@ -253,17 +267,28 @@ model.add(Dense(10, kernel_initializer='he_normal')) # last layer
 model.add(Activation('softmax'))
 
 
-# ## Compile and Train Neural Network Model ## 
-# # Compile Model
+## Compile and Train Neural Network Model ## 
+# Compile Model
 model.compile(optimizer='sgd',
               loss='categorical_crossentropy', 
               metrics=['accuracy'])
 
-# # Train Model
+# Train Model
 x_train = training_images.astype('float32')/255
 y_train = training_labels
 x_val = validation_images.astype('float32')/255
 y_val = validation_labels
+
+# Shuffle training set randomly because it is ascending right now
+train_shuffler = np.arange(0, len(x_train), 1)
+np.random.shuffle(train_shuffler)
+x_train = x_train[train_shuffler]
+y_train = y_train[train_shuffler]
+# Shuffle validation set randomly because it is ascending right now
+val_shuffler = np.arange(0, len(x_val), 1)
+np.random.shuffle(val_shuffler)
+x_val = x_val[val_shuffler]
+y_val = y_val[val_shuffler]
 
 # Can vary epochs + batch_size
 # 1. increased epochs to 20 to make sure we reach asymtoptic validation accuracy
@@ -271,43 +296,105 @@ y_val = validation_labels
 #   a. lower however has higher variance through epochs, potentially better accuracy ~300 sweet spot
 history = model.fit(x_train, y_train, 
                     validation_data = (x_val, y_val), 
-                    epochs=10, 
+                    epochs=1, 
                     batch_size=300)
 
+# @todo - write model to file
 
 ## Report Results of Training and Validation ##
 # Printout
-# print(history.history) @todo (uncomment for now)
+print(history.history)
 
 # Prediction
 x_test = testing_images.astype('float32')/255
-# y_test = np.reshape(testing_labels, (len(x_test), 10))
-y_test = np.argmax(testing_labels, axis=2)
-y_pred = model.predict(x_test) # uses the test set @todo
+# y_test = np.argmax(testing_labels, axis=2)
+y_test = testing_labels
 
-# Confusion Matrix @todo
-# Plots very simple confusion matrix
-# y_pred = np.reshape(np_utils.to_categorical(np.argmax(y_pred, axis=2)), (len(y_test), 10)) # turn pred binary and reshape
-y_pred = np.argmax(y_pred, axis=2)
-print(y_test)
-print(y_pred)
+# Shuffling testing set
+test_shuffler = np.arange(0, len(x_test), 1)
+np.random.shuffle(test_shuffler)
+x_test = x_test[test_shuffler]
+y_test = y_test[test_shuffler]
 
-cm = confusion_matrix(y_test, y_pred) # labels=[str(i) for i in range(10)]
-df_cm = pd.DataFrame(cm, range(10), range(10))
-plt.figure(figsize=(10,10))
-sn.heatmap(df_cm, annot=True)
-plt.xlabel('True Label')
-plt.ylabel('Predicted Label')
-plt.show()
+y_pred = model.predict(x_test)
 
-# print(np.argmax(y_pred, axis=2))
+print(y_test.shape)
+print(y_pred.shape)
+
+# Confusion Matrix 
+# Plots simple confusion matrix using seaborn/pandas + matplotlib
+# y_pred = np.argmax(y_pred, axis=2)
+ann_cm = confusion_matrix(np.argmax(y_test, axis=2), np.argmax(y_pred, axis=2)) 
+# plot_confusion_matrix(ann_cm)
+
+# print(cm)
+
+## Decision Tree ##
+# Reshape all data to 2 dimensions
+# x_ => YYY x 748    
+# y_ => YYY x 1      - no longer one-hot
+x_train = np.reshape(x_train, (len(x_train), len(x_train[0][0])))
+y_train = np.argmax(np.reshape(y_train, (len(y_train), len(y_train[0][0]))), axis=1)
+x_val = np.reshape(x_val, (len(x_val), len(x_val[0][0])))
+y_val = np.argmax(np.reshape(y_val, (len(y_val), len(y_val[0][0]))), axis=1)
+x_test = np.reshape(x_test, (len(x_test), len(x_test[0][0])))
+y_test = np.argmax(np.reshape(y_test, (len(y_test), len(y_test[0][0]))), axis=1)
+
+# Baseline Decision Tree
+# Accuracy against validation set:
+#  1. 78.703%
+#  2. 76.438% 
+#  3. 77.295%
+# Around 76-78%, lots of room for improvement
+# Default have main params of:
+# min_samples_split=2, min_samples_leaf=1, max_depth=None, max_leaf_nodes=None
+baseline_classifier = DecisionTreeClassifier()
+baseline_classifier_fit = baseline_classifier.fit(x_train, y_train)
+baseline_tree_prediction = baseline_classifier_fit.predict(x_val)
+baseline_tree_confusion_matrix = confusion_matrix(y_val, baseline_tree_prediction)
+# print(baseline_tree_confusion_matrix)
+# plot_confusion_matrix(baseline_tree_confusion_matrix)
+
+# Variation Decision Tree
+# max_depth to 24 --> slight increase
+# max_leaf_node: 64 too low, 128/256 no real difference
+# min_samples_leaf: 2 same, 4 slight increase, 10 too high
+variation_classifier = DecisionTreeClassifier(max_depth=12,
+											  min_samples_leaf=4,
+											  max_leaf_nodes=128,
+											  criterion='gini')
+variation_classifier_fit = variation_classifier.fit(x_train, y_train)
+variation_tree_prediction = variation_classifier_fit.predict(x_val)
+variation_tree_confusion_matrix = confusion_matrix(y_val, variation_tree_prediction)
+print('Variation Confusion Matrix: Acc={:0.3f}%'.format(100*np.trace(variation_tree_confusion_matrix)/np.sum(variation_tree_confusion_matrix)))
+print(variation_tree_confusion_matrix)
+# plot_confusion_matrix(variation_tree_confusion_matrix)
+
+# Hand-Crafted Decision Tree
+# Guessing we extend our input array to be YYY x 748 + x, where x is # of additional features
+# Average pixel value for each image
+train_pixden = np.reshape(np.asarray([np.mean(img) for img in x_train]), (len(x_train), 1))
+x_train_w_pixden = np.append(x_train, train_pixden, axis=1)
+
+val_pixden = np.reshape(np.asarray([np.mean(img) for img in x_val]), (len(x_val), 1))
+x_val_w_pixden = np.append(x_val, val_pixden, axis=1)
+
+crafted_classifier = DecisionTreeClassifier()
+crafted_classifier_fit = crafted_classifier.fit(x_train_w_pixden, y_train)
+crafted_tree_prediction = crafted_classifier_fit.predict(x_val_w_pixden)
+crafted_tree_confusion_matrix = confusion_matrix(y_val, crafted_tree_prediction)
+print('Crafted Confusion Matrix: Acc={:0.3f}%'.format(100*np.trace(crafted_tree_confusion_matrix)/np.sum(crafted_tree_confusion_matrix)))
+print(crafted_tree_confusion_matrix)
 
 
-# @debug
-# for i in range(10):
-# 	base = 900
-# 	plot_num(x_train[i+base],y_train[i+base])
-# 	plot_num(x_val[i+base],y_val[i+base])
+
+
+
+
+
+
+
+
 
 
 
