@@ -29,12 +29,14 @@ from keras import initializers
 from keras import utils as np_utils
 from sklearn.metrics import confusion_matrix
 from sklearn.tree import DecisionTreeClassifier
+# import sklearn.ndimage
 from matplotlib import pyplot as plt
 import numpy as np
 import copy
 import random
 import seaborn as sn
 import pandas as pd
+from PIL import Image, ImageEnhance
 
 # Model Template
 
@@ -59,7 +61,7 @@ onehot_labels = np_utils.to_categorical(labels)
 # Plots flattened image
 def plot_num(image,label):
 	plt.imshow(image.reshape(28, 28))
-	plt.title('label={}'.format(np.argmax(label)))
+	plt.title('label={}'.format(label))
 	plt.show()
 
 def plot_confusion_matrix(cm_):
@@ -279,6 +281,12 @@ y_train = training_labels
 x_val = validation_images.astype('float32')/255
 y_val = validation_labels
 
+
+# plot_num(x_train[0], y_train[0])
+# x_train = np.asarray([[1 for pixel in img[0] if pixel > 200/255] for img in x_train.tolist()])
+# plot_num(ImageEnhance.Contrast(x_train[0]).enhance(1), y_train[0])
+
+
 # Shuffle training set randomly because it is ascending right now
 train_shuffler = np.arange(0, len(x_train), 1)
 np.random.shuffle(train_shuffler)
@@ -372,16 +380,131 @@ print(variation_tree_confusion_matrix)
 
 # Hand-Crafted Decision Tree
 # Guessing we extend our input array to be YYY x 748 + x, where x is # of additional features
-# Average pixel value for each image
-train_pixden = np.reshape(np.asarray([np.mean(img) for img in x_train]), (len(x_train), 1))
-x_train_w_pixden = np.append(x_train, train_pixden, axis=1)
 
-val_pixden = np.reshape(np.asarray([np.mean(img) for img in x_val]), (len(x_val), 1))
-x_val_w_pixden = np.append(x_val, val_pixden, axis=1)
+# Feature #1
+# Average pixel value for each image
+# Using straight pixel density -> 16.478%, 16.066%, & 16.478%
+# This is better than guessing 1/10 = 10%, but pretty bad
+x_train_pixden = np.reshape(np.asarray([np.mean(img) for img in x_train]), (len(x_train), 1))
+# x_train_w_pixden = np.append(x_train, train_pixden, axis=1)
+x_val_pixden = np.reshape(np.asarray([np.mean(img) for img in x_val]), (len(x_val), 1))
+
+
+# Feature #2
+# Density of center
+# Two images that can gain from this:
+#  0: Will have extremely low center density
+#  1: Will have consistently high center density (most 1's are centered)
+# Adding this to our overall pixel density we got -> 28.012%, 27.600%, & 27.497%
+# Looking at a 6x6 box in the center
+def center_mean(image):
+	sq_image = np.reshape(image, (28, 28))
+	counter = 0
+	center_sum = 0
+	for col in range(28):
+		for row in range(28):
+			if row > 10 and col > 10 and row < 17 and col < 17:
+				counter += 1
+				center_sum += sq_image[row][col]
+	return center_sum / counter
+
+# Feature #3-6
+# Density of each corner
+# Get mean of each corner, will really help with classifying numbers that don't touch all corners (7, 4, 1, 9)
+# Added all four corners saw increase to --> 50.051%, 53.450%, & 51.287%
+# Downside: it takes very long to run we have to index every image
+corner_box_size = 11
+# Top Right
+def top_right_mean(image):
+	sq_image = np.reshape(image, (28, 28))
+	counter = 0
+	center_sum = 0
+	for col in range(28):
+		for row in range(28):
+			if row > (27-corner_box_size) and col < (corner_box_size) and row < 27 and col > 0:
+				counter += 1
+				center_sum += sq_image[row][col]
+	return center_sum / counter
+
+# Density of each corner
+# Bottom Right
+def bot_right_mean(image):
+	sq_image = np.reshape(image, (28, 28))
+	counter = 0
+	center_sum = 0
+	for col in range(28):
+		for row in range(28):
+			if row > (27-corner_box_size) and col > (27-corner_box_size) and row < 27 and col < 27:
+				counter += 1
+				center_sum += sq_image[row][col]
+	return center_sum / counter
+
+# Density of each corner
+# Bottom Left
+def bot_left_mean(image):
+	sq_image = np.reshape(image, (28, 28))
+	counter = 0
+	center_sum = 0
+	for col in range(28):
+		for row in range(28):
+			if row > 0 and col > (27-corner_box_size) and row < corner_box_size and col < 27:
+				counter += 1
+				center_sum += sq_image[row][col]
+	return center_sum / counter
+
+# Density of each corner
+# Top Left
+def top_left_mean(image):
+	sq_image = np.reshape(image, (28, 28))
+	counter = 0
+	center_sum = 0
+	for col in range(28):
+		for row in range(28):
+			if row > 0 and col > 0 and row < corner_box_size and col < corner_box_size:
+				counter += 1
+				center_sum += sq_image[row][col]
+	return center_sum / counter
+
+# Feature #7
+
+
+# Center
+x_train_cenpixden = np.reshape(np.asarray([center_mean(img) for img in x_train]), (len(x_train), 1))
+x_val_cenpixden = np.reshape(np.asarray([center_mean(img) for img in x_val]), (len(x_val), 1))
+
+# Corners
+x_train_TRpixden = np.reshape(np.asarray([top_right_mean(img) for img in x_train]), (len(x_train), 1))
+x_val_TRpixden = np.reshape(np.asarray([top_right_mean(img) for img in x_val]), (len(x_val), 1))
+x_train_BRpixden = np.reshape(np.asarray([bot_right_mean(img) for img in x_train]), (len(x_train), 1))
+x_val_BRpixden = np.reshape(np.asarray([bot_right_mean(img) for img in x_val]), (len(x_val), 1))
+x_train_BLpixden = np.reshape(np.asarray([bot_left_mean(img) for img in x_train]), (len(x_train), 1))
+x_val_BLpixden = np.reshape(np.asarray([bot_left_mean(img) for img in x_val]), (len(x_val), 1))
+x_train_TLpixden = np.reshape(np.asarray([top_left_mean(img) for img in x_train]), (len(x_train), 1))
+x_val_TLpixden = np.reshape(np.asarray([top_left_mean(img) for img in x_val]), (len(x_val), 1))
+
+# Combining features together
+# Training
+x_train_features = np.append(x_train_pixden, x_train_cenpixden, axis=1)
+x_train_features = np.append(x_train_features, x_train_TRpixden, axis=1)
+x_train_features = np.append(x_train_features, x_train_BRpixden, axis=1)
+x_train_features = np.append(x_train_features, x_train_BLpixden, axis=1)
+x_train_features = np.append(x_train_features, x_train_TLpixden, axis=1)
+
+# Validation
+x_val_features = np.append(x_val_pixden, x_val_cenpixden, axis=1)
+x_val_features = np.append(x_val_features, x_val_TRpixden, axis=1)
+x_val_features = np.append(x_val_features, x_val_BRpixden, axis=1)
+x_val_features = np.append(x_val_features, x_val_BLpixden, axis=1)
+x_val_features = np.append(x_val_features, x_val_TLpixden, axis=1)
+
+# Weights - @remove - failed experiment
+# equal_weights = (1/x_train.shape[0]) * np.ones(x_train.shape[1])
+# print(equal_weights.shape)
+# weights_w_pixden = np.append(equal_weights, 10/x_train.shape[0], axis=0)
 
 crafted_classifier = DecisionTreeClassifier()
-crafted_classifier_fit = crafted_classifier.fit(x_train_w_pixden, y_train)
-crafted_tree_prediction = crafted_classifier_fit.predict(x_val_w_pixden)
+crafted_classifier_fit = crafted_classifier.fit(x_train_features, y_train)
+crafted_tree_prediction = crafted_classifier_fit.predict(x_val_features)
 crafted_tree_confusion_matrix = confusion_matrix(y_val, crafted_tree_prediction)
 print('Crafted Confusion Matrix: Acc={:0.3f}%'.format(100*np.trace(crafted_tree_confusion_matrix)/np.sum(crafted_tree_confusion_matrix)))
 print(crafted_tree_confusion_matrix)
