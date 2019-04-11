@@ -60,7 +60,7 @@ onehot_labels = np_utils.to_categorical(labels)
 
 # Plots flattened image
 def plot_num(image,label):
-	plt.imshow(image.reshape(28, 28))
+	plt.imshow(image.reshape(28, 28), cmap='gray', vmin=0, vmax=255)
 	plt.title('label={}'.format(label))
 	plt.show()
 
@@ -403,7 +403,7 @@ def center_mean(image):
 	center_sum = 0
 	for col in range(28):
 		for row in range(28):
-			if row > 10 and col > 10 and row < 17 and col < 17:
+			if row > 11 and col > 11 and row < 16 and col < 16:
 				counter += 1
 				center_sum += sq_image[row][col]
 	return center_sum / counter
@@ -465,7 +465,55 @@ def top_left_mean(image):
 				center_sum += sq_image[row][col]
 	return center_sum / counter
 
+# Current Status: X_ means light, X+ means heavy
+# 0: issues with 2_
+# 1: no issues
+# 2: issues with 0_, 3+, and 6_
+# 3: issues with 2, 5 and 8_
+# 4: issues with 8 and 9+
+# 5: issues with 3_ and 6_
+# 6: light overall issues (~60% right now)
+# 7: issues with 4, 5_
+# 8: issues with 3_
+# 9: issues with 4+
+
+# Feature #??? - Could actually replace features 1-6 to be honest
+# Sliding Window Approach --> computationally intensive
+#  Iteratively move window across image, one pixel at a time
+# Extract features on each iteration
+# 1. Number of black pixels (< 10 or something)
+# 2. Location of uppermost black pixel
+# 3. Location of lowermost black pixel
+# 4. Deviation of uppermost pixel
+# 5. Deviation of lowermost pixel
+# 6. Pixel density 
+# 7. Number of black-to-white transition in vertical direction
+# 8. Center of gravity - use skimage+imageio package
+# 9. 2nd deriv. of the vertical moment
+
 # Feature #7
+# Count number of black squares per column - total of 28 features
+# Accuracy -> 63.955%, 61.792%, 62.616% 
+def num_black(image):
+	sq_image = np.reshape(image, (28, 28))
+	num_black_list = []
+	for col in range(28):
+		num_black = 0
+		for row in range(28):
+			if abs(sq_image[row][col] - 0.0) < 0.00001:
+				num_black += 1
+		num_black_list.append(num_black)
+	return num_black_list
+
+# Feature #8 
+# Modifivation of #7 -> count number of columns with >14 black squares
+# Could help with comparing say 2 against 9
+# If we did rows, could help with comparing 4 and 9 as 4 it open
+
+
+
+
+
 
 
 # Center
@@ -481,6 +529,10 @@ x_train_BLpixden = np.reshape(np.asarray([bot_left_mean(img) for img in x_train]
 x_val_BLpixden = np.reshape(np.asarray([bot_left_mean(img) for img in x_val]), (len(x_val), 1))
 x_train_TLpixden = np.reshape(np.asarray([top_left_mean(img) for img in x_train]), (len(x_train), 1))
 x_val_TLpixden = np.reshape(np.asarray([top_left_mean(img) for img in x_val]), (len(x_val), 1))
+x_train_numblack = np.reshape(np.asarray([num_black(img) for img in x_train]), (len(x_train), 28))
+x_val_numblack = np.reshape(np.asarray([num_black(img) for img in x_val]), (len(x_val), 28))
+
+print(x_train_numblack.shape)
 
 # Combining features together
 # Training
@@ -489,6 +541,8 @@ x_train_features = np.append(x_train_features, x_train_TRpixden, axis=1)
 x_train_features = np.append(x_train_features, x_train_BRpixden, axis=1)
 x_train_features = np.append(x_train_features, x_train_BLpixden, axis=1)
 x_train_features = np.append(x_train_features, x_train_TLpixden, axis=1)
+x_train_features = np.append(x_train_features, x_train_numblack, axis=1)
+
 
 # Validation
 x_val_features = np.append(x_val_pixden, x_val_cenpixden, axis=1)
@@ -496,6 +550,8 @@ x_val_features = np.append(x_val_features, x_val_TRpixden, axis=1)
 x_val_features = np.append(x_val_features, x_val_BRpixden, axis=1)
 x_val_features = np.append(x_val_features, x_val_BLpixden, axis=1)
 x_val_features = np.append(x_val_features, x_val_TLpixden, axis=1)
+x_val_features = np.append(x_val_features, x_val_numblack, axis=1)
+
 
 # Weights - @remove - failed experiment
 # equal_weights = (1/x_train.shape[0]) * np.ones(x_train.shape[1])
@@ -508,6 +564,7 @@ crafted_tree_prediction = crafted_classifier_fit.predict(x_val_features)
 crafted_tree_confusion_matrix = confusion_matrix(y_val, crafted_tree_prediction)
 print('Crafted Confusion Matrix: Acc={:0.3f}%'.format(100*np.trace(crafted_tree_confusion_matrix)/np.sum(crafted_tree_confusion_matrix)))
 print(crafted_tree_confusion_matrix)
+# plot_confusion_matrix(crafted_tree_confusion_matrix)
 
 
 
