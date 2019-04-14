@@ -2,8 +2,8 @@
 
 # We are using MNIST dataset
 # Each image is 28x28 greyscale (0-255 color range)
-#	0: white
-# 	255: black
+#	0: black
+# 	255: white
 # images.npy holds the images
 # labels.npy holds the labels (0-9)
 
@@ -337,7 +337,18 @@ ann_cm = confusion_matrix(np.argmax(y_test, axis=2), np.argmax(y_pred, axis=2))
 
 # print(cm)
 
+
+
+
+
+
+
+
+
+
+###################
 ## Decision Tree ##
+###################
 # Reshape all data to 2 dimensions
 # x_ => YYY x 748    
 # y_ => YYY x 1      - no longer one-hot
@@ -491,30 +502,47 @@ def top_left_mean(image):
 # 8. Center of gravity - use skimage+imageio package
 # 9. 2nd deriv. of the vertical moment
 
-# Feature #7
-# Count number of black squares per column - total of 28 features
-# Accuracy -> 63.955%, 61.792%, 62.616% 
-def num_black(image):
+
+# Feature #7.b
+# Way better than column counting !!! 
+# Faster too (cache efficient?)
+# Accuracy -> 76.004%, 73.944%, 76.622% 
+def num_black_row(image):
+	sq_image = np.reshape(image, (28, 28))
+	num_black_list = []
+	for row in range(28):
+		num_black = 0
+		for col in range(28):
+			if sq_image[row][col] < 0.1: 
+				num_black += 1
+		num_black_list.append(num_black)
+	return num_black_list
+
+# Feature #7.a
+# Count number of black squares per row - total of 28 features
+# Accuracy w/6   --> 63.955%, 61.792%, 62.616% 
+# Accuracy w/7.b --> 77.961%, 78.373%, 77.137%
+# Adding it to the row method below, shows only a ~1
+def num_black_col(image):
 	sq_image = np.reshape(image, (28, 28))
 	num_black_list = []
 	for col in range(28):
 		num_black = 0
 		for row in range(28):
-			if abs(sq_image[row][col] - 0.0) < 0.00001:
+			if sq_image[row][col] < 0.1: 
 				num_black += 1
 		num_black_list.append(num_black)
 	return num_black_list
 
-# Feature #8 
+# Feature #8 - potential
 # Modifivation of #7 -> count number of columns with >14 black squares
 # Could help with comparing say 2 against 9
 # If we did rows, could help with comparing 4 and 9 as 4 it open
 
-
-
-
-
-
+# Feature #9 - potential
+# Center of gravity
+# Linear combination of pixel value and (x,y)-normal divided by 28
+#  A picture of all 1's would have (1 + 2 + 3 + ... + 28)/28
 
 # Center
 x_train_cenpixden = np.reshape(np.asarray([center_mean(img) for img in x_train]), (len(x_train), 1))
@@ -529,10 +557,12 @@ x_train_BLpixden = np.reshape(np.asarray([bot_left_mean(img) for img in x_train]
 x_val_BLpixden = np.reshape(np.asarray([bot_left_mean(img) for img in x_val]), (len(x_val), 1))
 x_train_TLpixden = np.reshape(np.asarray([top_left_mean(img) for img in x_train]), (len(x_train), 1))
 x_val_TLpixden = np.reshape(np.asarray([top_left_mean(img) for img in x_val]), (len(x_val), 1))
-x_train_numblack = np.reshape(np.asarray([num_black(img) for img in x_train]), (len(x_train), 28))
-x_val_numblack = np.reshape(np.asarray([num_black(img) for img in x_val]), (len(x_val), 28))
 
-print(x_train_numblack.shape)
+# Counting Black in column/row
+x_train_numblackrow = np.reshape(np.asarray([num_black_row(img) for img in x_train]), (len(x_train), 28))
+x_val_numblackrow = np.reshape(np.asarray([num_black_row(img) for img in x_val]), (len(x_val), 28))
+x_train_numblackcol = np.reshape(np.asarray([num_black_col(img) for img in x_train]), (len(x_train), 28))
+x_val_numblackcol = np.reshape(np.asarray([num_black_col(img) for img in x_val]), (len(x_val), 28))
 
 # Combining features together
 # Training
@@ -541,8 +571,8 @@ x_train_features = np.append(x_train_features, x_train_TRpixden, axis=1)
 x_train_features = np.append(x_train_features, x_train_BRpixden, axis=1)
 x_train_features = np.append(x_train_features, x_train_BLpixden, axis=1)
 x_train_features = np.append(x_train_features, x_train_TLpixden, axis=1)
-x_train_features = np.append(x_train_features, x_train_numblack, axis=1)
-
+x_train_features = np.append(x_train_features, x_train_numblackrow, axis=1)
+x_train_features = np.append(x_train_features, x_train_numblackcol, axis=1)
 
 # Validation
 x_val_features = np.append(x_val_pixden, x_val_cenpixden, axis=1)
@@ -550,7 +580,8 @@ x_val_features = np.append(x_val_features, x_val_TRpixden, axis=1)
 x_val_features = np.append(x_val_features, x_val_BRpixden, axis=1)
 x_val_features = np.append(x_val_features, x_val_BLpixden, axis=1)
 x_val_features = np.append(x_val_features, x_val_TLpixden, axis=1)
-x_val_features = np.append(x_val_features, x_val_numblack, axis=1)
+x_val_features = np.append(x_val_features, x_val_numblackrow, axis=1)
+x_val_features = np.append(x_val_features, x_val_numblackcol, axis=1)
 
 
 # Weights - @remove - failed experiment
@@ -558,7 +589,8 @@ x_val_features = np.append(x_val_features, x_val_numblack, axis=1)
 # print(equal_weights.shape)
 # weights_w_pixden = np.append(equal_weights, 10/x_train.shape[0], axis=0)
 
-crafted_classifier = DecisionTreeClassifier()
+crafted_classifier = DecisionTreeClassifier(max_depth=16,
+											min_samples_leaf=2)
 crafted_classifier_fit = crafted_classifier.fit(x_train_features, y_train)
 crafted_tree_prediction = crafted_classifier_fit.predict(x_val_features)
 crafted_tree_confusion_matrix = confusion_matrix(y_val, crafted_tree_prediction)
